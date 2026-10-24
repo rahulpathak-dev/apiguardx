@@ -1,0 +1,52 @@
+name: APIGuardX CI Scan
+
+on:
+  workflow_dispatch:
+    inputs:
+      risk_threshold:
+        description: "Fail when APIGuardX risk score is greater than this value"
+        required: true
+        default: "70"
+
+jobs:
+  apiguardx-scan:
+    name: Authorized API Security Scan
+    runs-on: ubuntu-latest
+    env:
+      APIGUARDX_API_URL: ${{ secrets.APIGUARDX_API_URL }}
+      APIGUARDX_CI_TOKEN: ${{ secrets.APIGUARDX_CI_TOKEN }}
+      APIGUARDX_RISK_THRESHOLD: ${{ github.event.inputs.risk_threshold }}
+
+    steps:
+      - name: Trigger APIGuardX scan
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ -z "${APIGUARDX_API_URL}" ] || [ -z "${APIGUARDX_CI_TOKEN}" ]; then
+            echo "APIGUARDX_API_URL and APIGUARDX_CI_TOKEN secrets are required."
+            exit 1
+          fi
+
+          http_code="$(
+            curl -sS \
+              -o apiguardx-scan-result.json \
+              -w "%{http_code}" \
+              -X POST "${APIGUARDX_API_URL%/}/ci/scan" \
+              -H "Content-Type: application/json" \
+              -H "X-APIGUARDX-TOKEN: ${APIGUARDX_CI_TOKEN}" \
+              --data "{\"threshold\": ${APIGUARDX_RISK_THRESHOLD}}"
+          )"
+
+          python -m json.tool apiguardx-scan-result.json
+
+          if [ "${http_code}" -ge 400 ]; then
+            echo "APIGuardX scan failed or exceeded the risk threshold. HTTP ${http_code}."
+            exit 1
+          fi
+
+      - name: Upload scan JSON
+        uses: actions/upload-artifact@v4
+        with:
+          name: apiguardx-scan-result
+          path: apiguardx-scan-result.json
