@@ -93,9 +93,7 @@ def register_middleware(app: FastAPI) -> None:
     app.add_middleware(SecurityHeadersMiddleware)
     app.add_middleware(RateLimitMiddleware)
     app.add_middleware(RequestContextMiddleware)
-    if settings.trusted_host_list and "*" not in settings.trusted_host_list:
-        app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.trusted_host_list)
-
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=["*"])
 
 def _sanitize_request_id(value: str | None) -> str:
     if not value:
